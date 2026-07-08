@@ -19,6 +19,12 @@ import config
 PRIMARY_MODEL = "llama-3.3-70b-versatile"
 FALLBACK_MODEL = "llama-3.1-8b-instant"
 
+# Free-tier Groq TPM limits are tight (as low as 6000 tokens/minute on the
+# fallback model). Cap input length so input + max_tokens output always
+# stays comfortably under that, even for long slide decks.
+MAX_INPUT_CHARS = 9000  # roughly ~2500 tokens
+MAX_OUTPUT_TOKENS = 2000
+
 SYSTEM_PROMPT = """You are ClassMind, a study assistant that turns raw lecture \
 slide text into clean study material for a BS Computing/Mathematics/AI student.
 
@@ -45,7 +51,7 @@ def _call_groq(model: str, slide_text: str) -> str:
             {"role": "user", "content": f"Lecture slide text:\n\n{slide_text}"},
         ],
         temperature=0.3,
-        max_tokens=4096,
+        max_tokens=MAX_OUTPUT_TOKENS,
     )
     return resp.choices[0].message.content
 
@@ -55,10 +61,13 @@ def generate_lecture_materials(slide_text: str) -> dict:
     if not config.GROQ_API_KEY:
         raise RuntimeError("GROQ_API_KEY not set. Add it to .env.")
 
+    if len(slide_text) > MAX_INPUT_CHARS:
+        slide_text = slide_text[:MAX_INPUT_CHARS] + "\n\n[...truncated...]"
+
     try:
         raw = _call_groq(PRIMARY_MODEL, slide_text)
     except APIStatusError as e:
-        if e.status_code == 429:  # rate limited — fall back
+        if e.status_code in (429, 413):  # rate limited or too large — fall back
             raw = _call_groq(FALLBACK_MODEL, slide_text)
         else:
             raise
