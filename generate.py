@@ -53,7 +53,40 @@ def _call_groq(model: str, slide_text: str) -> str:
         temperature=0.3,
         max_tokens=MAX_OUTPUT_TOKENS,
     )
-    return resp.choices[0].message.content
+    return resp.choices[0].message.content or ""
+
+
+def _clean_json(raw: str) -> str:
+    cleaned = raw.strip()
+    if cleaned.startswith("```"):
+        cleaned = cleaned.strip("`")
+        if cleaned.startswith("json"):
+            cleaned = cleaned[4:]
+        cleaned = cleaned.strip()
+    return cleaned
+
+
+def _generate_once(slide_text: str) -> dict:
+    try:
+        raw = _call_groq(PRIMARY_MODEL, slide_text)
+    except APIStatusError as e:
+        if e.status_code in (429, 413):  # rate limited or too large — fall back
+            raw = _call_groq(FALLBACK_MODEL, slide_text)
+        else:
+            raise
+
+    cleaned = _clean_json(raw)
+
+    if not cleaned:
+        # Groq returned an empty response (rare, but happens). Give the
+        # caller something to log instead of a bare "line 1 column 1" error.
+        raise ValueError("Groq returned an empty response")
+
+    try:
+        return json.loads(cleaned, strict=False)
+    except json.JSONDecodeError as e:
+        preview = cleaned[:300].replace("\n", "\\n")
+        raise ValueError(f"Groq response wasn't valid JSON ({e}). Preview: {preview!r}") from e
 
 
 def generate_lecture_materials(slide_text: str) -> dict:
@@ -64,20 +97,11 @@ def generate_lecture_materials(slide_text: str) -> dict:
     if len(slide_text) > MAX_INPUT_CHARS:
         slide_text = slide_text[:MAX_INPUT_CHARS] + "\n\n[...truncated...]"
 
+    # Empty responses / occasional malformed JSON are a known Groq quirk —
+    # one retry clears the vast majority of them before we give up and let
+    # the poller retry again on its next cycle.
     try:
-        raw = _call_groq(PRIMARY_MODEL, slide_text)
-    except APIStatusError as e:
-        if e.status_code in (429, 413):  # rate limited or too large — fall back
-            raw = _call_groq(FALLBACK_MODEL, slide_text)
-        else:
-            raise
-
-    # Groq occasionally wraps JSON in fences despite instructions not to.
-    cleaned = raw.strip()
-    if cleaned.startswith("```"):
-        cleaned = cleaned.strip("`")
-        if cleaned.startswith("json"):
-            cleaned = cleaned[4:]
-        cleaned = cleaned.strip()
-
-    return json.loads(cleaned, strict=False)
+        return _generate_once(slide_text)
+    except ValueError as e:
+        print(f"  generation attempt 1 failed ({e}), retrying once...")
+        return _generate_once(slide_text)
