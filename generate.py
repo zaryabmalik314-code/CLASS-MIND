@@ -19,6 +19,10 @@ import config
 PRIMARY_MODEL = "llama-3.3-70b-versatile"
 FALLBACK_MODEL = "llama-3.1-8b-instant"
 
+# --- TEMP DEBUG: remove after fixing the 401 ---
+print("DEBUG GROQ KEY:", repr(config.GROQ_API_KEY), len(config.GROQ_API_KEY) if config.GROQ_API_KEY else 0)
+# --- END TEMP DEBUG ---
+
 SYSTEM_PROMPT = """You are ClassMind, a study assistant that turns raw lecture \
 slide text into clean study material for a BS Computing/Mathematics/AI student.
 
