@@ -2,15 +2,15 @@ import sqlite3
 import json
 from pathlib import Path
 from datetime import datetime, timezone
+import config
 
-DB_PATH = Path(__file__).parent / "classmind.db"
+DB_PATH = config.DATA_DIR / "classmind.db"
 
 def get_conn():
     conn = sqlite3.connect(DB_PATH, timeout=10)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA journal_mode=WAL")  # lets readers work while writer commits
     return conn
-
 def init_db():
     conn = get_conn()
     conn.execute("""
@@ -26,7 +26,6 @@ def init_db():
     """)
     conn.commit()
     conn.close()
-
 def save_lecture(course_name: str, lecture_title: str, notes: str, highlights: list, quiz: list):
     conn = get_conn()
     conn.execute(
