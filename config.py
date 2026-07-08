@@ -70,6 +70,10 @@ SCOPES = [
 # --- Telegram ---
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 CHAT_ID_FILE = DATA_DIR / "chat_id.txt"
+# Optional override: if set, used instead of reading CHAT_ID_FILE. Lets
+# bot.py and poller.py run as separate Railway services with separate
+# volumes, without needing to share one volume just for this one value.
+TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
 
 # --- Groq (generation) ---
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")

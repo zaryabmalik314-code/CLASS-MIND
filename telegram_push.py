@@ -43,13 +43,16 @@ def push(text: str, parse_mode: str | None = None) -> None:
             "TELEGRAM_BOT_TOKEN not set. Create a .env file next to this "
             "script with a line: TELEGRAM_BOT_TOKEN=your_token_here"
         )
-    if not config.CHAT_ID_FILE.exists():
+    if config.TELEGRAM_CHAT_ID:
+        chat_id = config.TELEGRAM_CHAT_ID
+    elif config.CHAT_ID_FILE.exists():
+        chat_id = config.CHAT_ID_FILE.read_text().strip()
+    else:
         raise RuntimeError(
-            "No chat_id saved yet. Run bot.py and send /start to your bot "
-            "in Telegram first."
+            "No chat_id available. Either set TELEGRAM_CHAT_ID as an env "
+            "var, or run bot.py and send /start to your bot in Telegram "
+            "first (writes chat_id.txt)."
         )
-
-    chat_id = config.CHAT_ID_FILE.read_text().strip()
 
     for chunk in _chunks(text, _SAFE_CHUNK):
         data = {"chat_id": chat_id, "text": chunk}
