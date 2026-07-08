@@ -70,4 +70,4 @@ def generate_lecture_materials(slide_text: str) -> dict:
             cleaned = cleaned[4:]
         cleaned = cleaned.strip()
 
-    return json.loads(cleaned)
+    return json.loads(cleaned, strict=False)
