@@ -45,6 +45,7 @@ def _call_groq(model: str, slide_text: str) -> str:
             {"role": "user", "content": f"Lecture slide text:\n\n{slide_text}"},
         ],
         temperature=0.3,
+        max_tokens=4096,
     )
     return resp.choices[0].message.content
 
