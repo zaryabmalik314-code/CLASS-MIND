@@ -2,9 +2,10 @@
 ClassMind - step 4: the poller.
 
 Checks all your active Classroom courses for new slide material,
-extracts text, generates notes/highlights/quiz via Groq, and pushes the
-result to Telegram. Run alongside bot.py — this script owns ingestion,
-bot.py owns the interactive side (currently just /start).
+extracts text, generates notes/highlights/quiz via Groq, saves the
+result to SQLite, and pushes it to Telegram. Run alongside bot.py —
+this script owns ingestion, bot.py owns the interactive side
+(currently just /start).
 
 Run:
     python poller.py
@@ -23,6 +24,7 @@ import config
 import drive_extract
 import generate
 import telegram_push
+from db import init_db, save_lecture
 
 
 def load_seen() -> set[str]:
@@ -82,6 +84,19 @@ def process_item(creds, course_name: str, item: dict, seen: set[str]) -> None:
         return  # retry next poll
 
     try:
+        save_lecture(
+            course_name=course_name,
+            lecture_title=item["post_title"],
+            notes=materials["notes"],
+            highlights=materials["highlights"],
+            quiz=materials["quiz"],
+        )
+    except Exception:
+        print("  db save failed:")
+        traceback.print_exc()
+        return  # retry next poll; don't push if we couldn't persist
+
+    try:
         summary = format_summary_message(course_name, item["post_title"], materials)
         telegram_push.push(summary)
         telegram_push.push(f"Full notes — {item['post_title']}:\n\n{materials['notes']}")
@@ -129,6 +144,7 @@ def main() -> None:
         f"ClassMind poller starting. Checking every "
         f"{config.POLL_INTERVAL_SECONDS}s. Ctrl+C to stop."
     )
+    init_db()
     seen = load_seen()
     while True:
         try:
