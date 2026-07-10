@@ -4,10 +4,37 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
 <title>ClassMind</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,500;8..60,600;8..60,700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
 <style>
-  html, body { margin: 0; padding: 0; background: #151310; }
+  :root {
+    --ink: #121110;
+    --surface: #1c1a16;
+    --surface-raised: #232019;
+    --rule: #322d22;
+    --rule-soft: #2a2620;
+    --accent: #d9a441;
+    --accent-soft: rgba(217, 164, 65, 0.14);
+    --accent-dim: rgba(217, 164, 65, 0.55);
+    --text-primary: #f2ede1;
+    --text-secondary: #a89f8c;
+    --text-muted: #625c4d;
+    --error: #c2634a;
+    --error-soft: rgba(194, 99, 74, 0.12);
+  }
+  html, body { margin: 0; padding: 0; background: var(--ink); }
   * { box-sizing: border-box; }
+  ::selection { background: var(--accent-soft); color: var(--text-primary); }
   @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+  @keyframes riseIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+  button:focus-visible, input:focus-visible, div[tabindex]:focus-visible {
+    outline: 2px solid var(--accent-dim);
+    outline-offset: 2px;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    * { animation-duration: 0.001ms !important; }
+  }
 </style>
 <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
 <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
@@ -20,6 +47,16 @@ const { useState, useEffect } = React;
 
 // Point this at your deployed FastAPI (api.py) service.
 const API_BASE_URL = "https://delightful-enchantment-production-2a8a.up.railway.app";
+
+const FONT_SERIF = "'Source Serif 4', Georgia, serif";
+const FONT_SANS = "'Inter', -apple-system, sans-serif";
+const FONT_MONO = "'IBM Plex Mono', monospace";
+
+// ---- Ruled-paper texture: a faint repeating horizontal line, like notebook paper ----
+const ruledPaper = {
+  backgroundImage: "repeating-linear-gradient(to bottom, transparent, transparent 27px, rgba(50,45,34,0.35) 28px)",
+  backgroundPosition: "0 4px",
+};
 
 // ---- Inline icon components (replacing lucide-react for CDN use) ----
 function Icon({ children, size = 18, color = "currentColor", style }) {
@@ -37,6 +74,7 @@ const BookOpen = (p) => <Icon {...p}><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-
 const MessageCircle = (p) => <Icon {...p}><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" /></Icon>;
 const Sparkles = (p) => <Icon {...p}><path d="M12 3l1.6 4.8L18 9l-4.4 1.2L12 15l-1.6-4.8L6 9l4.4-1.2z" /></Icon>;
 const RefreshCw = (p) => <Icon {...p}><polyline points="23 4 23 10 17 10" /><polyline points="1 20 1 14 7 14" /><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" /></Icon>;
+const AlertIcon = (p) => <Icon {...p}><circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" /></Icon>;
 
 function renderMarkdown(md) {
   const lines = md.split("\n");
@@ -76,8 +114,8 @@ function inline(text) {
   while ((m = regex.exec(text))) {
     if (m.index > last) parts.push(text.slice(last, m.index));
     const token = m[0];
-    if (token.startsWith("**")) parts.push(<b key={key++} style={{ fontWeight: 600, color: "#f3ede1" }}>{token.slice(2, -2)}</b>);
-    else parts.push(<span key={key++} style={{ fontFamily: "Georgia, serif", fontStyle: "italic", color: "#e9c46a" }}>{token.replace(/\$\$?/g, "")}</span>);
+    if (token.startsWith("**")) parts.push(<b key={key++} style={{ fontWeight: 600, color: "var(--text-primary)" }}>{token.slice(2, -2)}</b>);
+    else parts.push(<span key={key++} style={{ fontFamily: FONT_SERIF, fontStyle: "italic", color: "var(--accent)" }}>{token.replace(/\$\$?/g, "")}</span>);
     last = m.index + token.length;
   }
   if (last < text.length) parts.push(text.slice(last));
@@ -89,38 +127,54 @@ function Markdown({ content }) {
   return (
     <div>
       {blocks.map((b, idx) => {
-        if (b.type === "h1") return <h1 key={idx} style={{ fontSize: 22, fontWeight: 700, margin: "0 0 14px", color: "#f5f1e8", fontFamily: "'Georgia', serif" }}>{b.content}</h1>;
-        if (b.type === "h2") return <h2 key={idx} style={{ fontSize: 17, fontWeight: 700, margin: "22px 0 10px", color: "#f5f1e8", fontFamily: "'Georgia', serif" }}>{b.content}</h2>;
-        if (b.type === "h3") return <h3 key={idx} style={{ fontSize: 15, fontWeight: 600, margin: "16px 0 6px", color: "#d8d2c4" }}>{b.content}</h3>;
-        if (b.type === "li") return <div key={idx} style={{ display: "flex", gap: 8, margin: "4px 0", fontSize: 14.5, lineHeight: 1.7, color: "#c9c3b6" }}><span style={{ color: "#e9c46a" }}>•</span><span>{inline(b.content)}</span></div>;
-        if (b.type === "oli") return <div key={idx} style={{ display: "flex", gap: 8, margin: "4px 0", fontSize: 14.5, lineHeight: 1.7, color: "#c9c3b6" }}><span style={{ color: "#e9c46a" }}>—</span><span>{inline(b.content)}</span></div>;
-        if (b.type === "code") return <pre key={idx} style={{ background: "#12100c", border: "1px solid #2a271f", borderRadius: 8, padding: "10px 12px", fontSize: 12.5, overflowX: "auto", color: "#d8d2c4", fontFamily: "monospace", margin: "8px 0" }}>{b.content}</pre>;
+        if (b.type === "h1") return <h1 key={idx} style={{ fontSize: 21, fontWeight: 600, margin: "0 0 14px", color: "var(--text-primary)", fontFamily: FONT_SERIF, letterSpacing: -0.2 }}>{b.content}</h1>;
+        if (b.type === "h2") return <h2 key={idx} style={{ fontSize: 16.5, fontWeight: 600, margin: "22px 0 10px", color: "var(--text-primary)", fontFamily: FONT_SERIF, letterSpacing: -0.1 }}>{b.content}</h2>;
+        if (b.type === "h3") return <h3 key={idx} style={{ fontSize: 14, fontWeight: 700, margin: "16px 0 6px", color: "var(--text-secondary)", fontFamily: FONT_SANS, textTransform: "uppercase", letterSpacing: 0.6 }}>{b.content}</h3>;
+        if (b.type === "li") return <div key={idx} style={{ display: "flex", gap: 8, margin: "4px 0", fontSize: 14.5, lineHeight: 1.7, color: "var(--text-secondary)" }}><span style={{ color: "var(--accent)" }}>—</span><span>{inline(b.content)}</span></div>;
+        if (b.type === "oli") return <div key={idx} style={{ display: "flex", gap: 8, margin: "4px 0", fontSize: 14.5, lineHeight: 1.7, color: "var(--text-secondary)" }}><span style={{ color: "var(--accent)" }}>—</span><span>{inline(b.content)}</span></div>;
+        if (b.type === "code") return <pre key={idx} style={{ background: "var(--ink)", border: "1px solid var(--rule)", borderRadius: 6, padding: "10px 12px", fontSize: 12.5, overflowX: "auto", color: "var(--text-secondary)", fontFamily: FONT_MONO, margin: "8px 0" }}>{b.content}</pre>;
         if (b.type === "space") return <div key={idx} style={{ height: 4 }} />;
-        return <p key={idx} style={{ fontSize: 14.5, lineHeight: 1.75, color: "#c9c3b6", margin: "6px 0", fontFamily: "Georgia, serif" }}>{inline(b.content)}</p>;
+        return <p key={idx} style={{ fontSize: 14.5, lineHeight: 1.75, color: "var(--text-secondary)", margin: "6px 0", fontFamily: FONT_SERIF }}>{inline(b.content)}</p>;
       })}
     </div>
   );
 }
 
-function QuizCard({ q }) {
+function QuizCard({ q, index }) {
   const [open, setOpen] = useState(false);
   return (
     <button
       onClick={() => setOpen(!open)}
       style={{
-        display: "block", width: "100%", textAlign: "left", background: "#1c1a15",
-        border: `1px solid ${open ? "#e9c46a" : "#2a271f"}`, borderRadius: 10,
-        padding: "12px 14px", marginBottom: 10, cursor: "pointer",
+        display: "block", width: "100%", textAlign: "left", background: "var(--surface)",
+        border: `1px solid ${open ? "var(--accent-dim)" : "var(--rule)"}`, borderRadius: 8,
+        padding: "13px 15px 13px 42px", marginBottom: 9, cursor: "pointer", position: "relative",
+        transition: "border-color 0.15s ease",
       }}
     >
-      <div style={{ fontSize: 14, fontWeight: 600, color: "#f0ead9", marginBottom: open ? 8 : 0 }}>{q.question}</div>
+      <span style={{
+        position: "absolute", left: 14, top: 13, fontFamily: FONT_MONO, fontSize: 11,
+        fontWeight: 600, color: open ? "var(--accent)" : "var(--text-muted)",
+      }}>{String(index + 1).padStart(2, "0")}</span>
+      <div style={{ fontSize: 14, fontWeight: 600, color: "var(--text-primary)", marginBottom: open ? 8 : 0, fontFamily: FONT_SANS }}>{q.question}</div>
       {open && (
-        <div style={{ fontSize: 13.5, color: "#c9c3b6", lineHeight: 1.6, paddingTop: 8, borderTop: "1px solid #2a271f", fontFamily: "Georgia, serif" }}>
+        <div style={{ fontSize: 13.5, color: "var(--text-secondary)", lineHeight: 1.6, paddingTop: 8, borderTop: "1px solid var(--rule-soft)", fontFamily: FONT_SERIF }}>
           {q.answer}
         </div>
       )}
-      {!open && <div style={{ fontSize: 12, color: "#6b6658", marginTop: 4 }}>tap to reveal answer</div>}
+      {!open && <div style={{ fontSize: 11.5, color: "var(--text-muted)", marginTop: 4, fontFamily: FONT_SANS }}>tap to reveal answer</div>}
     </button>
+  );
+}
+
+function CourseStamp({ children }) {
+  return (
+    <span style={{
+      display: "inline-block", fontFamily: FONT_MONO, fontSize: 10.5, fontWeight: 600,
+      color: "var(--accent)", letterSpacing: 0.5, textTransform: "uppercase",
+      border: "1px solid var(--accent-dim)", borderRadius: 4, padding: "2px 7px",
+      background: "var(--accent-soft)",
+    }}>{children}</span>
   );
 }
 
@@ -129,16 +183,18 @@ function LectureCard({ lecture, onOpen }) {
   return (
     <div
       style={{
-        background: "#1c1a15", border: "1px solid #2a271f", borderRadius: 12,
-        padding: "14px 16px", marginBottom: 12,
+        background: "var(--surface)", border: "1px solid var(--rule)", borderRadius: 10,
+        borderLeft: "3px solid var(--accent-dim)",
+        padding: "14px 16px", marginBottom: 11, position: "relative",
+        animation: "riseIn 0.3s ease both",
       }}
     >
       <div onClick={() => onOpen(lecture)} style={{ cursor: "pointer" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 4 }}>
-          <span style={{ fontSize: 11.5, color: "#e9c46a", fontWeight: 600, letterSpacing: 0.2 }}>{lecture.course}</span>
-          <span style={{ fontSize: 11.5, color: "#6b6658" }}>{lecture.date}</span>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+          <CourseStamp>{lecture.course}</CourseStamp>
+          <span style={{ fontSize: 11, color: "var(--text-muted)", fontFamily: FONT_MONO }}>{lecture.date}</span>
         </div>
-        <div style={{ fontSize: 16, fontWeight: 700, color: "#f5f1e8", marginBottom: 8, fontFamily: "'Georgia', serif" }}>
+        <div style={{ fontSize: 16, fontWeight: 600, color: "var(--text-primary)", marginBottom: 8, fontFamily: FONT_SERIF, letterSpacing: -0.1, lineHeight: 1.3 }}>
           {lecture.lecture_title}
         </div>
       </div>
@@ -146,22 +202,23 @@ function LectureCard({ lecture, onOpen }) {
         onClick={() => setExpanded(!expanded)}
         style={{
           display: "flex", alignItems: "center", gap: 4, background: "none", border: "none",
-          color: "#8a8575", fontSize: 12, padding: 0, cursor: "pointer", marginBottom: expanded ? 8 : 0,
+          color: "var(--text-secondary)", fontSize: 12, padding: 0, cursor: "pointer",
+          marginBottom: expanded ? 8 : 0, fontFamily: FONT_SANS, fontWeight: 500,
         }}
       >
-        {expanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+        {expanded ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
         highlights
       </button>
       {expanded && (
-        <div style={{ marginBottom: 8 }}>
+        <div style={{ marginBottom: 8, paddingLeft: 2 }}>
           {lecture.highlights.slice(0, 3).map((h, i) => (
-            <div key={i} style={{ display: "flex", gap: 6, fontSize: 13, color: "#c9c3b6", lineHeight: 1.6, marginBottom: 3 }}>
-              <span style={{ color: "#e9c46a" }}>•</span><span>{h}</span>
+            <div key={i} style={{ display: "flex", gap: 6, fontSize: 13, color: "var(--text-secondary)", lineHeight: 1.6, marginBottom: 3, fontFamily: FONT_SANS }}>
+              <span style={{ color: "var(--accent)" }}>·</span><span>{h}</span>
             </div>
           ))}
         </div>
       )}
-      <div onClick={() => onOpen(lecture)} style={{ display: "flex", alignItems: "center", gap: 4, color: "#e9c46a", fontSize: 12.5, fontWeight: 600, cursor: "pointer", marginTop: 4 }}>
+      <div onClick={() => onOpen(lecture)} style={{ display: "flex", alignItems: "center", gap: 4, color: "var(--accent)", fontSize: 12.5, fontWeight: 600, cursor: "pointer", marginTop: 4, fontFamily: FONT_SANS }}>
         open notes <ChevronRight size={13} />
       </div>
     </div>
@@ -172,30 +229,30 @@ function LectureDetail({ lecture, onBack }) {
   const [highlightsOpen, setHighlightsOpen] = useState(true);
   return (
     <div style={{ padding: "16px 16px 32px" }}>
-      <div onClick={onBack} style={{ display: "flex", alignItems: "center", gap: 4, color: "#8a8575", fontSize: 13, marginBottom: 16, cursor: "pointer" }}>
+      <div onClick={onBack} style={{ display: "flex", alignItems: "center", gap: 4, color: "var(--text-secondary)", fontSize: 13, marginBottom: 16, cursor: "pointer", fontFamily: FONT_SANS, fontWeight: 500 }}>
         <ChevronRight size={14} style={{ transform: "rotate(180deg)" }} /> back
       </div>
-      <div style={{ fontSize: 11.5, color: "#e9c46a", fontWeight: 600, marginBottom: 4 }}>{lecture.course}</div>
-      <div style={{ fontSize: 20, fontWeight: 700, color: "#f5f1e8", marginBottom: 2, fontFamily: "'Georgia', serif" }}>{lecture.lecture_title}</div>
-      <div style={{ fontSize: 12, color: "#6b6658", marginBottom: 20 }}>{lecture.date}</div>
+      <CourseStamp>{lecture.course}</CourseStamp>
+      <div style={{ fontSize: 21, fontWeight: 600, color: "var(--text-primary)", margin: "10px 0 3px", fontFamily: FONT_SERIF, letterSpacing: -0.2, lineHeight: 1.25 }}>{lecture.lecture_title}</div>
+      <div style={{ fontSize: 11.5, color: "var(--text-muted)", marginBottom: 20, fontFamily: FONT_MONO }}>{lecture.date}</div>
 
       <div
         style={{
-          background: "#1c1a15", border: "1px solid #e9c46a33", borderRadius: 12,
-          padding: "12px 16px", marginBottom: 20,
+          background: "var(--surface)", border: "1px solid var(--accent-dim)", borderRadius: 10,
+          padding: "12px 16px", marginBottom: 22, ...ruledPaper,
         }}
       >
         <button
           onClick={() => setHighlightsOpen(!highlightsOpen)}
-          style={{ display: "flex", alignItems: "center", gap: 6, width: "100%", background: "none", border: "none", cursor: "pointer", padding: 0, color: "#e9c46a", fontSize: 13, fontWeight: 700 }}
+          style={{ display: "flex", alignItems: "center", gap: 6, width: "100%", background: "none", border: "none", cursor: "pointer", padding: 0, color: "var(--accent)", fontSize: 12.5, fontWeight: 700, fontFamily: FONT_SANS, textTransform: "uppercase", letterSpacing: 0.5 }}
         >
-          <Sparkles size={14} /> highlights {highlightsOpen ? <ChevronDown size={14} style={{ marginLeft: "auto" }} /> : <ChevronRight size={14} style={{ marginLeft: "auto" }} />}
+          <Sparkles size={13} /> highlights {highlightsOpen ? <ChevronDown size={14} style={{ marginLeft: "auto" }} /> : <ChevronRight size={14} style={{ marginLeft: "auto" }} />}
         </button>
         {highlightsOpen && (
           <div style={{ marginTop: 10 }}>
             {lecture.highlights.map((h, i) => (
-              <div key={i} style={{ display: "flex", gap: 6, fontSize: 13.5, color: "#e5dfd0", lineHeight: 1.65, marginBottom: 5 }}>
-                <span style={{ color: "#e9c46a" }}>•</span><span>{h}</span>
+              <div key={i} style={{ display: "flex", gap: 6, fontSize: 13.5, color: "var(--text-primary)", lineHeight: 1.65, marginBottom: 5, fontFamily: FONT_SANS }}>
+                <span style={{ color: "var(--accent)" }}>·</span><span>{h}</span>
               </div>
             ))}
           </div>
@@ -204,10 +261,30 @@ function LectureDetail({ lecture, onBack }) {
 
       <Markdown content={lecture.notes} />
 
-      <div style={{ marginTop: 28 }}>
-        <div style={{ fontSize: 15, fontWeight: 700, color: "#f5f1e8", marginBottom: 12, fontFamily: "'Georgia', serif" }}>Quiz</div>
-        {lecture.quiz.map((q, i) => <QuizCard key={i} q={q} />)}
+      <div style={{ marginTop: 30 }}>
+        <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginBottom: 13 }}>
+          <div style={{ fontSize: 15, fontWeight: 600, color: "var(--text-primary)", fontFamily: FONT_SERIF }}>Quiz</div>
+          <div style={{ fontSize: 11.5, color: "var(--text-muted)", fontFamily: FONT_MONO }}>{lecture.quiz.length} questions</div>
+        </div>
+        {lecture.quiz.map((q, i) => <QuizCard key={i} q={q} index={i} />)}
       </div>
+    </div>
+  );
+}
+
+function SectionHeader({ children, sub }) {
+  return (
+    <div style={{ marginBottom: 20 }}>
+      <div style={{ fontSize: 22, fontWeight: 600, color: "var(--text-primary)", fontFamily: FONT_SERIF, letterSpacing: -0.3 }}>{children}</div>
+      {sub && <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 3, fontFamily: FONT_MONO }}>{sub}</div>}
+    </div>
+  );
+}
+
+function EmptyState({ label }) {
+  return (
+    <div style={{ border: "1px dashed var(--rule)", borderRadius: 10, padding: "26px 20px", textAlign: "center", color: "var(--text-muted)", fontSize: 13, fontFamily: FONT_SANS }}>
+      {label}
     </div>
   );
 }
@@ -215,9 +292,9 @@ function LectureDetail({ lecture, onBack }) {
 function Home({ onOpen, lectures }) {
   const sorted = [...lectures].sort((a, b) => new Date(b.date) - new Date(a.date));
   return (
-    <div style={{ padding: "16px 16px 8px" }}>
-      <div style={{ fontSize: 22, fontWeight: 700, color: "#f5f1e8", marginBottom: 18, fontFamily: "'Georgia', serif" }}>ClassMind</div>
-      {sorted.length === 0 && <div style={{ color: "#6b6658", fontSize: 13 }}>No lectures processed yet.</div>}
+    <div style={{ padding: "18px 16px 8px" }}>
+      <SectionHeader sub={`${lectures.length} lecture${lectures.length !== 1 ? "s" : ""} processed`}>ClassMind</SectionHeader>
+      {sorted.length === 0 && <EmptyState label="No lectures processed yet." />}
       {sorted.map((l) => <LectureCard key={l.id} lecture={l} onOpen={onOpen} />)}
     </div>
   );
@@ -228,9 +305,9 @@ function Courses({ onOpenCourse, lectures }) {
   lectures.forEach((l) => { counts[l.course] = (counts[l.course] || 0) + 1; });
   const courseNames = Object.keys(counts);
   return (
-    <div style={{ padding: "16px 16px 8px" }}>
-      <div style={{ fontSize: 22, fontWeight: 700, color: "#f5f1e8", marginBottom: 18, fontFamily: "'Georgia', serif" }}>Courses</div>
-      {courseNames.length === 0 && <div style={{ color: "#6b6658", fontSize: 13 }}>No courses yet.</div>}
+    <div style={{ padding: "18px 16px 8px" }}>
+      <SectionHeader>Courses</SectionHeader>
+      {courseNames.length === 0 && <EmptyState label="No courses yet." />}
       {courseNames.map((c) => {
         const count = counts[c];
         return (
@@ -238,16 +315,17 @@ function Courses({ onOpenCourse, lectures }) {
             key={c}
             onClick={() => onOpenCourse(c)}
             style={{
-              background: "#1c1a15", border: "1px solid #2a271f", borderRadius: 12,
+              background: "var(--surface)", border: "1px solid var(--rule)", borderRadius: 10,
+              borderLeft: "3px solid var(--accent-dim)",
               padding: "14px 16px", marginBottom: 10, cursor: "pointer",
               display: "flex", justifyContent: "space-between", alignItems: "center",
             }}
           >
             <div>
-              <div style={{ fontSize: 15, fontWeight: 600, color: "#f0ead9" }}>{c}</div>
-              <div style={{ fontSize: 12, color: "#6b6658", marginTop: 2 }}>{count} lecture{count !== 1 ? "s" : ""}</div>
+              <div style={{ fontSize: 15, fontWeight: 600, color: "var(--text-primary)", fontFamily: FONT_SERIF }}>{c}</div>
+              <div style={{ fontSize: 11.5, color: "var(--text-muted)", marginTop: 3, fontFamily: FONT_MONO }}>{count} lecture{count !== 1 ? "s" : ""}</div>
             </div>
-            <ChevronRight size={16} color="#6b6658" />
+            <ChevronRight size={16} color="var(--text-muted)" />
           </div>
         );
       })}
@@ -258,12 +336,12 @@ function Courses({ onOpenCourse, lectures }) {
 function CourseDetail({ course, onBack, onOpenLecture, lectures }) {
   const filtered = lectures.filter((l) => l.course === course).sort((a, b) => new Date(b.date) - new Date(a.date));
   return (
-    <div style={{ padding: "16px 16px 8px" }}>
-      <div onClick={onBack} style={{ display: "flex", alignItems: "center", gap: 4, color: "#8a8575", fontSize: 13, marginBottom: 14, cursor: "pointer" }}>
+    <div style={{ padding: "18px 16px 8px" }}>
+      <div onClick={onBack} style={{ display: "flex", alignItems: "center", gap: 4, color: "var(--text-secondary)", fontSize: 13, marginBottom: 16, cursor: "pointer", fontFamily: FONT_SANS, fontWeight: 500 }}>
         <ChevronRight size={14} style={{ transform: "rotate(180deg)" }} /> all courses
       </div>
-      <div style={{ fontSize: 19, fontWeight: 700, color: "#f5f1e8", marginBottom: 16, fontFamily: "'Georgia', serif" }}>{course}</div>
-      {filtered.length === 0 && <div style={{ color: "#6b6658", fontSize: 13 }}>No lectures processed yet.</div>}
+      <SectionHeader>{course}</SectionHeader>
+      {filtered.length === 0 && <EmptyState label="No lectures processed yet." />}
       {filtered.map((l) => <LectureCard key={l.id} lecture={l} onOpen={onOpenLecture} />)}
     </div>
   );
@@ -271,19 +349,19 @@ function CourseDetail({ course, onBack, onOpenLecture, lectures }) {
 
 function Chat() {
   return (
-    <div style={{ padding: "16px 16px 8px", display: "flex", flexDirection: "column", minHeight: 420 }}>
-      <div style={{ fontSize: 22, fontWeight: 700, color: "#f5f1e8", marginBottom: 18, fontFamily: "'Georgia', serif" }}>Chat</div>
+    <div style={{ padding: "18px 16px 8px", display: "flex", flexDirection: "column", minHeight: 420 }}>
+      <SectionHeader>Chat</SectionHeader>
       <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", textAlign: "center", padding: "0 24px" }}>
-        <div style={{ width: 44, height: 44, borderRadius: "50%", background: "#e9c46a1a", display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 14 }}>
-          <MessageCircle size={20} color="#e9c46a" />
+        <div style={{ width: 46, height: 46, borderRadius: 8, background: "var(--accent-soft)", border: "1px solid var(--accent-dim)", display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 14 }}>
+          <MessageCircle size={19} color="var(--accent)" />
         </div>
-        <div style={{ fontSize: 14.5, color: "#c9c3b6", lineHeight: 1.6 }}>Ask questions about your lectures — coming soon.</div>
+        <div style={{ fontSize: 14, color: "var(--text-secondary)", lineHeight: 1.6, fontFamily: FONT_SANS }}>Ask questions about your lectures — coming soon.</div>
       </div>
-      <div style={{ display: "flex", gap: 8, alignItems: "center", background: "#1c1a15", border: "1px solid #2a271f", borderRadius: 24, padding: "10px 16px" }}>
+      <div style={{ display: "flex", gap: 8, alignItems: "center", background: "var(--surface)", border: "1px solid var(--rule)", borderRadius: 10, padding: "11px 16px" }}>
         <input
           disabled
           placeholder="Ask about a lecture..."
-          style={{ flex: 1, background: "none", border: "none", outline: "none", color: "#6b6658", fontSize: 13.5 }}
+          style={{ flex: 1, background: "none", border: "none", outline: "none", color: "var(--text-muted)", fontSize: 13.5, fontFamily: FONT_SANS }}
         />
       </div>
     </div>
@@ -292,21 +370,24 @@ function Chat() {
 
 function LoadingScreen() {
   return (
-    <div style={{ minHeight: 400, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 10 }}>
-      <RefreshCw size={20} color="#e9c46a" style={{ animation: "spin 1s linear infinite" }} />
-      <div style={{ fontSize: 13, color: "#8a8575" }}>loading lectures...</div>
+    <div style={{ minHeight: 420, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 12 }}>
+      <RefreshCw size={20} color="var(--accent)" style={{ animation: "spin 1s linear infinite" }} />
+      <div style={{ fontSize: 12.5, color: "var(--text-muted)", fontFamily: FONT_MONO, letterSpacing: 0.3 }}>loading lectures…</div>
     </div>
   );
 }
 
 function ErrorScreen({ message, onRetry }) {
   return (
-    <div style={{ minHeight: 400, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 10, padding: "0 24px", textAlign: "center" }}>
-      <div style={{ fontSize: 14, color: "#e07a5f", fontWeight: 600 }}>Couldn't reach ClassMind</div>
-      <div style={{ fontSize: 12.5, color: "#8a8575", lineHeight: 1.6 }}>{message}</div>
+    <div style={{ minHeight: 420, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 12, padding: "0 28px", textAlign: "center" }}>
+      <div style={{ width: 40, height: 40, borderRadius: 8, background: "var(--error-soft)", border: "1px solid var(--error)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <AlertIcon size={18} color="var(--error)" />
+      </div>
+      <div style={{ fontSize: 14, color: "var(--text-primary)", fontWeight: 600, fontFamily: FONT_SANS }}>Couldn't reach ClassMind</div>
+      <div style={{ fontSize: 12.5, color: "var(--text-muted)", lineHeight: 1.6, fontFamily: FONT_SANS }}>{message}</div>
       <button
         onClick={onRetry}
-        style={{ marginTop: 6, background: "#1c1a15", border: "1px solid #2a271f", borderRadius: 8, padding: "8px 16px", color: "#e9c46a", fontSize: 13, fontWeight: 600, cursor: "pointer" }}
+        style={{ marginTop: 6, background: "var(--surface)", border: "1px solid var(--rule)", borderRadius: 8, padding: "8px 18px", color: "var(--accent)", fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: FONT_SANS }}
       >
         Retry
       </button>
@@ -373,14 +454,14 @@ function App() {
   else if (tab === "chat") body = <Chat />;
 
   return (
-    <div style={{ maxWidth: 400, margin: "0 auto", background: "#151310", minHeight: "100vh", fontFamily: "-apple-system, sans-serif", position: "relative" }}>
-      <div style={{ paddingBottom: 70 }}>{body}</div>
+    <div style={{ maxWidth: 400, margin: "0 auto", background: "var(--ink)", minHeight: "100vh", fontFamily: FONT_SANS, position: "relative" }}>
+      <div style={{ paddingBottom: 74 }}>{body}</div>
       {!openLecture && (
         <div
           style={{
             position: "fixed", bottom: 0, left: "50%", transform: "translateX(-50%)",
-            width: "100%", maxWidth: 400, background: "#1c1a15",
-            borderTop: "1px solid #2a271f", display: "flex",
+            width: "100%", maxWidth: 400, background: "var(--surface)",
+            borderTop: "1px solid var(--rule)", display: "flex",
           }}
         >
           {tabs.map((t) => {
@@ -391,13 +472,14 @@ function App() {
                 key={t.id}
                 onClick={() => handleTab(t.id)}
                 style={{
-                  flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 3,
-                  padding: "10px 0 8px", background: "none", border: "none", cursor: "pointer",
-                  color: active ? "#e9c46a" : "#6b6658",
+                  flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 4,
+                  padding: "11px 0 9px", background: "none", border: "none", cursor: "pointer",
+                  color: active ? "var(--accent)" : "var(--text-muted)", position: "relative",
                 }}
               >
                 <IconComp size={19} />
-                <span style={{ fontSize: 10.5, fontWeight: active ? 700 : 500 }}>{t.label}</span>
+                <span style={{ fontSize: 10, fontWeight: active ? 600 : 500, fontFamily: FONT_SANS, letterSpacing: 0.2 }}>{t.label}</span>
+                {active && <span style={{ position: "absolute", top: 0, left: "50%", transform: "translateX(-50%)", width: 22, height: 2, background: "var(--accent)", borderRadius: 2 }} />}
               </button>
             );
           })}
